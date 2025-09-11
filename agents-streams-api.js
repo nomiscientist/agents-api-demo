@@ -152,7 +152,7 @@ async function connect() {
     chatId = chatData.id;
     console.log('Chat session created:', chatId);
 
-    // 3) Create stream session
+    // Create a new stream
     console.log('Creating stream session...');
     const streamOptions = { compatibility_mode: 'on', fluent: true };
     const resStream = await fetchWithRetry(`${DID_API.url}/agents/${agentId}/streams`, {
@@ -173,13 +173,13 @@ async function connect() {
         idleVideo.src = agentData.presenter.idle_video;
     }
 
-    // 3) Set up WebRTC and produce local SDP answer
+    // Start the WebRTC connection and submit network info (asynchronously)
     console.log('Setting up WebRTC connection...');
     const RTCPeerConnectionCtor =
         window.RTCPeerConnection || window.webkitRTCPeerConnection || window.mozRTCPeerConnection;
     peerConnection = new RTCPeerConnectionCtor({ iceServers: ice_servers });
 
-    // ICE candidates → API
+    // Submit Network information (ICE candidates → API)
     peerConnection.addEventListener('icecandidate', (event) => {
         const body = event.candidate
             ? { candidate: event.candidate.candidate, sdpMid: event.candidate.sdpMid, sdpMLineIndex: event.candidate.sdpMLineIndex }
@@ -256,7 +256,7 @@ async function connect() {
         }, 400);
     });
 
-    // Data channel (answers + fluent clip control)
+    // Data channel - Chat Answers, Fluent + Interrupt (Only for Premium+ Agents)
     const dc = peerConnection.createDataChannel('JanusDataChannel');
     dc.onmessage = (event) => {
         let msg = event.data;
@@ -290,7 +290,8 @@ async function connect() {
             }
         }
     };
-
+    
+// Interrupt Button logic
     interruptButton.onclick = () => {
         if (!currentVideoId) return;
         console.log('Interrupting video', currentVideoId);
@@ -304,7 +305,7 @@ async function connect() {
     const answer = await peerConnection.createAnswer();
     await peerConnection.setLocalDescription(answer);
 
-    // 4) Send SDP answer
+    // Send SDP answer (Start a WebRTC connection endpoint)
     console.log('Sending local SDP answer...');
     await fetch(`${DID_API.url}/agents/${agentId}/streams/${streamId}/sdp`, {
         method: 'POST',
